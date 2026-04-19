@@ -86,13 +86,69 @@ Using FAISS `IndexIVFFlat` with `nlist ≈ √N` Voronoi cells and `nprobe ≈ n
 │   ├── test_retriever.py
 │   └── test_pipeline.py
 ├── sample_docs/               # Example documents
+├── .streamlit/
+│   └── config.toml            # Streamlit server & theme settings
+├── app.py                     # Streamlit web UI
+├── Dockerfile                 # Container image for deployment
 ├── main.py                    # CLI entry-point
 └── requirements.txt
 ```
 
 ---
 
-## Installation
+## Web Deployment
+
+### Run locally with Streamlit
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Open http://localhost:8501 in your browser.
+
+The web UI provides:
+- **Index Documents** tab — drag-and-drop TXT/PDF/DOCX/MD files or load the bundled sample docs
+- **Ask a Question** tab — conversational chat interface with source-chunk attribution and latency display
+- **Sidebar** — live controls for chunking, retrieval weights, FAISS parameters, and the generator model
+
+### Run with Docker
+
+```bash
+# Build the image
+docker build -t hybrid-ai-qa .
+
+# Run (port 8501)
+docker run -p 8501:8501 hybrid-ai-qa
+```
+
+### Deploy to Streamlit Community Cloud (free)
+
+1. Fork this repository to your GitHub account.
+2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
+3. Click **New app** → select the forked repo → set **Main file path** to `app.py`.
+4. Click **Deploy**. The app will be live at `https://<your-app>.streamlit.app`.
+
+> **Note**: First load downloads the sentence-transformer and Flan-T5 models (~500 MB).
+> Streamlit Community Cloud has a 2 GB RAM limit; use `flan-t5-small` if you hit memory limits.
+
+### Deploy to Hugging Face Spaces
+
+```bash
+# Install the HF CLI
+pip install huggingface_hub
+
+# Create a Space (SDK: streamlit)
+huggingface-cli repo create hybrid-ai-qa --type space --space_sdk streamlit
+
+# Push
+git remote add space https://huggingface.co/spaces/<your-username>/hybrid-ai-qa
+git push space main
+```
+
+---
+
+
 
 ```bash
 pip install -r requirements.txt
