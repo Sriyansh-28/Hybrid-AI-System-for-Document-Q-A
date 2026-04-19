@@ -148,6 +148,8 @@ class FAISSVectorStore:
 
         self._index = faiss.read_index(index_path)
         with open(meta_path, "rb") as fh:
+            # NOTE: This file is always written by this module itself (trusted source).
+            # Do not load index files from untrusted external directories.
             data = pickle.load(fh)  # noqa: S301
         self._chunks = data["chunks"]
         self._id_to_idx = data["id_to_idx"]
@@ -164,6 +166,10 @@ class FAISSVectorStore:
     def get_chunk_by_id(self, chunk_id: str) -> Optional[Chunk]:
         idx = self._id_to_idx.get(chunk_id)
         return self._chunks[idx] if idx is not None else None
+
+    def get_all_chunks(self) -> List[Chunk]:
+        """Return a copy of all indexed chunks."""
+        return list(self._chunks)
 
     # ------------------------------------------------------------------
     # Internal helpers

@@ -107,4 +107,4 @@ class EmbeddingModel:
 
     @staticmethod
     def _cache_key(text: str) -> str:
-        return hashlib.md5(text.encode("utf-8")).hexdigest()  # noqa: S324
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()

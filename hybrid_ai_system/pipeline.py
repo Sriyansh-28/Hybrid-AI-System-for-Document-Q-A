@@ -182,7 +182,7 @@ class RAGPipeline:
         """Restore the vector store from *directory* and rebuild the BM25 index."""
         self.vector_store.load(directory)
         # Rebuild BM25 from the loaded chunks
-        chunks = self.vector_store._chunks
+        chunks = self.vector_store.get_all_chunks()
         if chunks:
             self.retriever.build_sparse_index(chunks)
         logger.info("Pipeline state loaded from '%s'", directory)
@@ -213,7 +213,7 @@ class RAGPipeline:
 
         # Rebuild BM25 over the full corpus (incremental BM25 is not supported
         # by rank-bm25, so we rebuild on every index call)
-        self.retriever.build_sparse_index(self.vector_store._chunks)
+        self.retriever.build_sparse_index(self.vector_store.get_all_chunks())
 
         logger.info("Indexing complete. Total chunks in store: %d", self.vector_store.num_vectors)
         return len(chunks)
