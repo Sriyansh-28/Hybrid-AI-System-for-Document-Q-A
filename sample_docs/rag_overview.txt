@@ -1,0 +1,53 @@
+Introduction to Retrieval-Augmented Generation
+
+Retrieval-Augmented Generation (RAG) is a technique that combines the strengths of two paradigms in
+natural language processing: information retrieval and language generation. Traditional language
+models generate text based solely on patterns learned during training, which can lead to hallucinations
+or outdated information. RAG addresses this by grounding generation in a retrieved corpus of documents.
+
+How RAG Works
+
+A RAG pipeline consists of three main components:
+
+1. Document ingestion — Raw documents (PDFs, text files, web pages) are split into overlapping
+   chunks of text. Overlapping ensures that relevant information is not lost at chunk boundaries.
+
+2. Embedding and indexing — Each chunk is encoded into a dense vector representation using a
+   sentence-transformer model. These vectors are stored in an efficient vector database such as
+   FAISS (Facebook AI Similarity Search), which supports approximate nearest-neighbour (ANN) queries
+   at low latency.
+
+3. Retrieval and generation — At query time, the user's question is encoded into a query vector.
+   The vector database retrieves the most similar chunks, which are then injected into a prompt
+   for a language model (e.g., GPT-4, Flan-T5, LLaMA). The model produces an answer grounded in
+   the retrieved context.
+
+Hybrid Retrieval
+
+Dense retrieval (semantic search via embeddings) excels at capturing semantic similarity but may
+miss documents that share few common words. Sparse retrieval (BM25) is based on term frequency
+and inverse document frequency (TF-IDF style), making it strong for exact keyword matching.
+
+Hybrid retrieval combines both signals using Reciprocal Rank Fusion (RRF), which merges ranked
+lists from multiple retrievers:
+
+    score(d) = w_dense / (k + r_dense) + w_sparse / (k + r_sparse)
+
+where r_dense and r_sparse are the rank of document d in the dense and sparse result lists
+respectively, k is a constant (typically 60), and w_dense, w_sparse are weights that sum to 1.
+
+Empirically, hybrid retrieval achieves 20–35% higher recall than either method alone on standard
+retrieval benchmarks such as BEIR.
+
+FAISS for Scalable Similarity Search
+
+FAISS provides several index types for different speed/accuracy trade-offs:
+
+- IndexFlatIP: Exact inner-product search. O(N) scan; best for < 10 k vectors.
+- IndexIVFFlat: Inverted File index. Partitions vectors into nlist Voronoi cells. At query time
+  only nprobe cells are visited, reducing latency by 40–60 % vs. Flat at minor accuracy cost.
+- IndexHNSW: Hierarchical Navigable Small World graph. Extremely fast queries with high recall,
+  at the cost of larger memory footprint.
+
+For 500+ document corpora, IVFFlat with nlist ≈ sqrt(N) and nprobe ≈ nlist/10 provides an
+excellent balance between query speed (~40 % latency reduction) and retrieval quality.
