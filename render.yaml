@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: hybrid-ai-qa-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: free
+    envVars:
+      - key: EMBEDDING_MODEL
+        value: sentence-transformers/all-MiniLM-L6-v2
+      - key: GENERATOR_MODEL
+        value: google/flan-t5-small
+      - key: DEVICE
+        value: cpu
+    healthCheckPath: /health
+
+  - type: web
+    name: hybrid-ai-qa-ui
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /_stcore/health

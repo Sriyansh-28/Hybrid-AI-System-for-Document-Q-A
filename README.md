@@ -77,6 +77,7 @@ Using FAISS `IndexIVFFlat` with `nlist ≈ √N` Voronoi cells and `nprobe ≈ n
 │   ├── retriever.py           # BM25Index + HybridRetriever (RRF fusion)
 │   ├── generator.py           # Seq2seq answer generation (Flan-T5)
 │   ├── pipeline.py            # End-to-end RAGPipeline
+│   ├── api.py                 # FastAPI REST service
 │   └── utils.py               # Timing, deduplication, MRR/Recall/Precision metrics
 ├── tests/
 │   ├── conftest.py            # MockEmbeddingModel (no network required)
@@ -84,15 +85,75 @@ Using FAISS `IndexIVFFlat` with `nlist ≈ √N` Voronoi cells and `nprobe ≈ n
 │   ├── test_embeddings.py
 │   ├── test_vector_store.py
 │   ├── test_retriever.py
-│   └── test_pipeline.py
+│   ├── test_pipeline.py
+│   └── test_api.py
 ├── sample_docs/               # Example documents
 ├── .streamlit/
 │   └── config.toml            # Streamlit server & theme settings
+├── .github/workflows/ci.yml   # Test suite + Docker build on push/PR
 ├── app.py                     # Streamlit web UI
-├── Dockerfile                 # Container image for deployment
+├── Dockerfile                 # Container image for the Streamlit UI
+├── Dockerfile.api              # Container image for the FastAPI service
+├── docker-compose.yml         # Run API + UI together locally
+├── render.yaml                 # Render.com deployment blueprint
 ├── main.py                    # CLI entry-point
 └── requirements.txt
 ```
+
+---
+
+## REST API
+
+A FastAPI service (`hybrid_ai_system/api.py`) exposes the pipeline over HTTP for
+chatbot-style integration — no Streamlit dependency required.
+
+### Run locally
+
+```bash
+pip install -r requirements.txt
+uvicorn hybrid_ai_system.api:app --reload
+```
+
+Interactive docs: http://localhost:8000/docs
+
+### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness probe |
+| `GET` | `/stats` | Indexed chunk count + active model config |
+| `POST` | `/index/texts` | Index raw text passages (JSON body) |
+| `POST` | `/index/upload` | Index uploaded files (multipart, TXT/PDF/DOCX/MD) |
+| `POST` | `/query` | Ask a question against the indexed corpus |
+| `DELETE` | `/index` | Reset the in-memory index |
+
+### Example
+
+```bash
+curl -X POST http://localhost:8000/index/texts \
+  -H "Content-Type: application/json" \
+  -d '{"texts": ["FAISS is a library for efficient similarity search."]}'
+
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is FAISS?", "top_k": 3}'
+```
+
+### Configuration (environment variables)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Dense embedding model |
+| `GENERATOR_MODEL` | `google/flan-t5-base` | Seq2seq answer generator |
+| `DEVICE` | `cpu` | `cpu`, `cuda`, or `mps` |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `512` / `64` | Chunking parameters |
+| `FAISS_NLIST` / `FAISS_NPROBE` | `100` / `10` | FAISS IVF parameters |
+| `TOP_K` / `DENSE_WEIGHT` | `5` / `0.6` | Retrieval fusion parameters |
+| `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
+
+> The API holds a single in-memory index (process-wide singleton) — suitable
+> for a demo/single-tenant deployment. For multi-tenant or persistent use,
+> call `pipeline.save()`/`.load()` against a mounted volume or object store.
 
 ---
 
@@ -145,6 +206,29 @@ huggingface-cli repo create hybrid-ai-qa --type space --space_sdk streamlit
 git remote add space https://huggingface.co/spaces/<your-username>/hybrid-ai-qa
 git push space main
 ```
+
+### Run API + UI together with Docker Compose
+
+```bash
+docker compose up --build
+```
+
+This builds and runs both the FastAPI service (`:8000`) and the Streamlit UI (`:8501`).
+
+### Deploy the REST API to Render (free tier)
+
+1. Fork this repository.
+2. In the [Render dashboard](https://dashboard.render.com), click **New → Blueprint** and point it at your fork — Render reads `render.yaml` and provisions both the API and UI services automatically.
+3. Alternatively, create a single **Web Service** manually: runtime **Docker**, Dockerfile path `Dockerfile.api`, health check path `/health`.
+4. The API will be live at `https://<service-name>.onrender.com`; interactive docs at `/docs`.
+
+> Free-tier instances have limited RAM — `GENERATOR_MODEL=google/flan-t5-small` (set in `render.yaml`) keeps memory usage low. Free instances also spin down on idle, so the first request after inactivity will be slow (cold start + model load).
+
+### CI/CD
+
+`.github/workflows/ci.yml` runs the full `pytest` suite and builds both Docker
+images on every push/PR to `main`. Render (and most PaaS providers) can be
+configured to auto-deploy on push once CI passes.
 
 ---
 
