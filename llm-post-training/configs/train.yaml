@@ -1,0 +1,32 @@
+# Training configuration.
+# Everything an experiment needs lives here so runs are reproducible: change a
+# value, commit it, and the run is fully described by this file plus the code.
+
+data:
+  raw_path: data/raw/sample_raw.jsonl
+  processed_dir: data/processed
+  eval_fraction: 0.1        # fraction of cleaned data held out for eval
+  max_examples: null        # cap for quick smoke runs; null = use all
+  min_output_chars: 1
+  seed: 42
+
+model:
+  base_model: meta-llama/Llama-2-7b-hf
+  max_seq_length: 1024
+  load_in_4bit: true        # QLoRA: fits a 7B model on a single 24GB GPU
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj]
+
+train:
+  output_dir: outputs/adapter
+  epochs: 3.0
+  per_device_batch_size: 4
+  grad_accum_steps: 8       # effective batch = 4 * 8 = 32
+  learning_rate: 0.0002
+  warmup_ratio: 0.03
+  logging_steps: 10
+  save_steps: 200
+  bf16: true
+  seed: 42

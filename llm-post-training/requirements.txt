@@ -1,0 +1,22 @@
+# Core training + serving stack. Versions are pinned to keep runs reproducible;
+# bump them deliberately, not by accident.
+
+# --- data / config (needed for prepare + tests, no GPU required) ---
+pyyaml==6.0.2
+
+# --- training stack (GPU) ---
+torch==2.3.1
+transformers==4.42.4
+peft==0.11.1
+trl==0.9.6
+datasets==2.20.0
+accelerate==0.32.1
+bitsandbytes==0.43.1
+
+# --- serving ---
+fastapi==0.111.0
+uvicorn==0.30.1
+pydantic==2.8.2
+
+# --- dev / test ---
+pytest==8.2.2

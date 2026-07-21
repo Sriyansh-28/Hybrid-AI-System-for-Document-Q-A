@@ -1,0 +1,19 @@
+# Model outputs and checkpoints
+outputs/
+*.safetensors
+*.bin
+
+# Processed data (regenerate from raw with scripts/prepare_data.py)
+data/processed/*.jsonl
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Experiment tracking / local logs
+wandb/
+*.log

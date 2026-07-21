@@ -1,0 +1,15 @@
+# Evaluation configuration.
+# Points at a trained adapter and the held-out eval split, and controls how
+# strict the correctness scorer is.
+
+model:
+  base_model: meta-llama/Llama-2-7b-hf
+  max_seq_length: 1024
+  load_in_4bit: true
+
+eval:
+  adapter_path: outputs/adapter
+  eval_path: data/processed/eval.jsonl
+  report_path: outputs/eval_report.json
+  max_new_tokens: 256
+  similarity_threshold: 0.75   # token-F1 at/above this counts as correct

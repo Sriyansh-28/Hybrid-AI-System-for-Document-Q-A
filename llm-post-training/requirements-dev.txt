@@ -1,0 +1,4 @@
+# Lightweight deps for running the data/prompt/scoring/eval tests without a GPU
+# stack. Install these to work on the pipeline logic on a laptop.
+pyyaml==6.0.2
+pytest==8.2.2
