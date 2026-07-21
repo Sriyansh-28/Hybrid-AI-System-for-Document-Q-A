@@ -1,0 +1,30 @@
+# ── Base image ────────────────────────────────────────────────────────────────
+FROM python:3.11-slim
+
+# ── System dependencies ────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Working directory ─────────────────────────────────────────────────────────
+WORKDIR /app
+
+# ── Python dependencies ───────────────────────────────────────────────────────
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ── Application code ──────────────────────────────────────────────────────────
+COPY . .
+
+# ── API configuration ─────────────────────────────────────────────────────────
+EXPOSE 8000
+
+ENV EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2" \
+    GENERATOR_MODEL="google/flan-t5-small" \
+    DEVICE="cpu"
+
+HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
+
+ENTRYPOINT ["uvicorn", "hybrid_ai_system.api:app", "--host", "0.0.0.0", "--port", "8000"]
