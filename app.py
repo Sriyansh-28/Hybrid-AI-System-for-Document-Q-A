@@ -57,6 +57,7 @@ def _init_state() -> None:
         "indexed_files": [],
         "chat_history": [],       # list of {"role": "user"|"assistant", "content": str, "meta": dict}
         "pipeline_config": None,
+        "sample_files": [],       # sample-doc paths pending indexing (persists across reruns)
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -186,28 +187,33 @@ def render_upload_tab(pipeline: RAGPipeline) -> None:
         st.markdown("**Or use the sample docs**")
         use_samples = st.button("📚 Load sample documents", use_container_width=True)
 
-    files_to_index: List[str] = []
-
+    # Persist the sample-doc selection across reruns. Clicking "Load sample
+    # documents" and then "Index documents" are two separate script runs; a
+    # button is only True on the run it was clicked, so without session_state
+    # the selection (and the whole block below) would vanish on the second run.
     if use_samples and os.path.isdir(SAMPLE_DOCS_DIR):
-        for fname in os.listdir(SAMPLE_DOCS_DIR):
-            if any(fname.endswith(ext) for ext in SUPPORTED_EXTENSIONS):
-                files_to_index.append(os.path.join(SAMPLE_DOCS_DIR, fname))
-        if files_to_index:
-            st.info(f"Found {len(files_to_index)} sample document(s): {[os.path.basename(f) for f in files_to_index]}")
+        st.session_state.sample_files = [
+            os.path.join(SAMPLE_DOCS_DIR, fname)
+            for fname in sorted(os.listdir(SAMPLE_DOCS_DIR))
+            if any(fname.endswith(ext) for ext in SUPPORTED_EXTENSIONS)
+        ]
 
-    tmp_paths: List[str] = []
+    files_to_index: List[str] = list(st.session_state.get("sample_files", []))
+    if files_to_index:
+        names = [os.path.basename(f) for f in files_to_index]
+        st.info(f"Loaded {len(files_to_index)} sample document(s): {names}")
+
     if uploaded_files:
         tmp_dir = tempfile.mkdtemp()
         for uf in uploaded_files:
             dest = os.path.join(tmp_dir, uf.name)
             with open(dest, "wb") as fh:
                 fh.write(uf.read())
-            tmp_paths.append(dest)
-        files_to_index.extend(tmp_paths)
+            files_to_index.append(dest)
 
     if files_to_index:
-        # Warn about large files that are slow to embed / may exceed memory on
-        # small free-tier hosts, so a stalled index isn't a mystery.
+        # A soft heads-up (not a hard limit): big files embed slowly on the
+        # free-tier CPU and risk the 512 MB memory ceiling.
         large = [
             (os.path.basename(p), os.path.getsize(p) / 1e6)
             for p in files_to_index
@@ -216,9 +222,9 @@ def render_upload_tab(pipeline: RAGPipeline) -> None:
         if large:
             listing = ", ".join(f"`{name}` ({mb:.1f} MB)" for name, mb in large)
             st.warning(
-                f"⚠️ Large file(s) detected: {listing}. Embedding runs on CPU and can "
-                f"take several minutes — or run out of memory on a 512 MB free-tier "
-                f"instance. For a quick demo, try a smaller file or the sample docs."
+                f"⚠️ Large file(s): {listing}. These still work, but embedding runs "
+                f"on CPU and may take a few minutes — and can hit the 512 MB memory "
+                f"limit on the free-tier host. Smaller files or the sample docs index fastest."
             )
 
         if st.button("🔍 Index documents", type="primary", use_container_width=True):
@@ -246,9 +252,13 @@ def render_upload_tab(pipeline: RAGPipeline) -> None:
             else:
                 progress.empty()
                 elapsed = time.perf_counter() - start
+                # Clear the pending sample selection so the button resets and we
+                # don't re-index the same samples on the next interaction.
+                st.session_state.sample_files = []
                 st.success(
                     f"✅ Indexed **{total_chunks}** chunks from "
-                    f"{len(files_to_index)} file(s) in {elapsed:.1f}s."
+                    f"{len(files_to_index)} file(s) in {elapsed:.1f}s. "
+                    "Go to the **Ask a Question** tab."
                 )
 
     if st.session_state.indexed_files:

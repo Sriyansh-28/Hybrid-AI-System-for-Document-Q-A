@@ -3,6 +3,10 @@ headless = true
 port = 8501
 enableCORS = false
 enableXsrfProtection = true
+# Cap uploads at 10 MB so the uploader advertises a realistic limit for the
+# free-tier host (Streamlit's default of 200 MB is far beyond what a 512 MB
+# instance can embed).
+maxUploadSize = 10
 
 [browser]
 gatherUsageStats = false
