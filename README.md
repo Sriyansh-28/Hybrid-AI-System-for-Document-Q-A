@@ -52,15 +52,30 @@ Documents (TXT / PDF / DOCX)
                                       Answer
 ```
 
-### Retrieval relevance improvement
+### Retrieval relevance
 
-Hybrid retrieval (RRF fusion of FAISS + BM25) achieves **~31 % better retrieval relevance** than dense-only search on standard QA benchmarks, by combining:
+Hybrid retrieval (RRF fusion of FAISS + BM25) combines:
 - **Dense signals**: semantic similarity via L2-normalised sentence-transformer embeddings.
 - **Sparse signals**: exact term matching via BM25 probabilistic scoring.
 
+The `evaluation/` harness scores dense-only vs. hybrid on a labeled query set
+(MRR / Recall@k / Precision@k). Hybrid matches or beats dense-only, with the
+clearest gains on **exact-term queries** — error codes, model numbers,
+identifiers — where lexical BM25 catches literal matches that pure semantic
+search can drift away from. The size of the gain is corpus-dependent: a strong
+dense model already saturates on a small, well-separated corpus, and the hybrid
+advantage widens as the corpus grows and contains more lexically-confusable
+passages. Run `python -m evaluation.evaluate_retrieval` to reproduce the numbers
+on the bundled set.
+
 ### Query latency reduction
 
-Using FAISS `IndexIVFFlat` with `nlist ≈ √N` Voronoi cells and `nprobe ≈ nlist/10` probes reduces average query latency by **~40 %** compared to exhaustive linear scan (`IndexFlatIP`), while retaining >95 % recall at top-5.
+Using FAISS `IndexIVFFlat` (`nlist ≈ √N` Voronoi cells, `nprobe` tuned to hold
+recall) instead of an exhaustive `IndexFlatIP` scan trades a little recall for
+much lower latency. Benchmarked by the same harness on 20k clustered 384-d
+vectors, IVF cuts **mean query latency by ~65–70 %** while **retaining ≥95 % of
+the exact top-5 results** — reproduce with
+`python -m evaluation.evaluate_retrieval --skip-relevance`.
 
 ---
 
