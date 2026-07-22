@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+import time
 from typing import List, Optional
 
 import streamlit as st
@@ -44,6 +45,8 @@ logging.basicConfig(level=logging.WARNING)
 # ── Constants ─────────────────────────────────────────────────────────────────
 SAMPLE_DOCS_DIR = os.path.join(os.path.dirname(__file__), "sample_docs")
 SUPPORTED_EXTENSIONS = [".txt", ".md", ".pdf", ".docx"]
+# Files larger than this are slow to embed / risk OOM on small free-tier hosts.
+LARGE_FILE_MB = 1.0
 
 # ── Session-state helpers ─────────────────────────────────────────────────────
 
@@ -132,11 +135,16 @@ def render_sidebar() -> SystemConfig:
         generator_model = st.selectbox(
             "Generator model",
             options=[
-                "google/flan-t5-base",
                 "google/flan-t5-small",
+                "google/flan-t5-base",
                 "google/flan-t5-large",
             ],
             index=0,
+            help=(
+                "flan-t5-small (~300 MB) is the safe default for low-memory hosts. "
+                "Larger models give better answers but need more RAM — flan-t5-base "
+                "(~1 GB) may exceed a 512 MB free-tier instance."
+            ),
         )
         device = st.selectbox("Device", options=["cpu", "cuda", "mps"], index=0)
 
@@ -198,12 +206,50 @@ def render_upload_tab(pipeline: RAGPipeline) -> None:
         files_to_index.extend(tmp_paths)
 
     if files_to_index:
+        # Warn about large files that are slow to embed / may exceed memory on
+        # small free-tier hosts, so a stalled index isn't a mystery.
+        large = [
+            (os.path.basename(p), os.path.getsize(p) / 1e6)
+            for p in files_to_index
+            if os.path.exists(p) and os.path.getsize(p) / 1e6 > LARGE_FILE_MB
+        ]
+        if large:
+            listing = ", ".join(f"`{name}` ({mb:.1f} MB)" for name, mb in large)
+            st.warning(
+                f"⚠️ Large file(s) detected: {listing}. Embedding runs on CPU and can "
+                f"take several minutes — or run out of memory on a 512 MB free-tier "
+                f"instance. For a quick demo, try a smaller file or the sample docs."
+            )
+
         if st.button("🔍 Index documents", type="primary", use_container_width=True):
-            with st.spinner("Indexing … this may take a moment on first run (model download)"):
-                n = pipeline.index_documents(files_to_index)
-            indexed_names = [os.path.basename(p) for p in files_to_index]
-            st.session_state.indexed_files.extend(indexed_names)
-            st.success(f"✅ Indexed **{n}** chunks from {len(files_to_index)} file(s).")
+            progress = st.progress(0.0, text="Preparing …")
+            start = time.perf_counter()
+            total_chunks = 0
+            try:
+                for i, path in enumerate(files_to_index):
+                    name = os.path.basename(path)
+                    progress.progress(
+                        i / len(files_to_index),
+                        text=f"Indexing {name} … ({i + 1}/{len(files_to_index)}) "
+                        f"— first run also downloads the model",
+                    )
+                    total_chunks += pipeline.index_documents([path])
+                    st.session_state.indexed_files.append(name)
+                progress.progress(1.0, text="Done")
+            except Exception as exc:  # noqa: BLE001
+                progress.empty()
+                st.error(
+                    f"❌ Indexing failed: {exc}\n\n"
+                    "On a 512 MB free-tier host this is usually the process running "
+                    "out of memory on a large file. Try a smaller document or a larger instance."
+                )
+            else:
+                progress.empty()
+                elapsed = time.perf_counter() - start
+                st.success(
+                    f"✅ Indexed **{total_chunks}** chunks from "
+                    f"{len(files_to_index)} file(s) in {elapsed:.1f}s."
+                )
 
     if st.session_state.indexed_files:
         st.markdown("---")
@@ -328,7 +374,7 @@ def main() -> None:
     _init_state()
 
     st.title("🔍 Hybrid AI Document Q&A")
-    st.caption("Upload documents, then ask questions — powered by hybrid dense + sparse retrieval and Flan-T5.")
+    st.caption("Upload documents, then ask questions — powered by hybrid dense + sparse retrieval, with optional Flan-T5 answer generation.")
 
     config = render_sidebar()
 
@@ -337,7 +383,22 @@ def main() -> None:
     st.session_state.pipeline = pipeline
     st.session_state.pipeline_config = config
 
-    use_generator = st.toggle("Use LLM generator (uncheck for retrieval-only mode)", value=True)
+    use_generator = st.toggle(
+        "Use LLM generator (off = fast retrieval-only mode)",
+        value=False,
+        help=(
+            "When on, a Flan-T5 model writes a natural-language answer from the "
+            "retrieved chunks. This needs significant RAM and may crash on a "
+            "512 MB free-tier host — leave it off there to return the top "
+            "retrieved passage instead. Turn it on when running locally or on a "
+            "larger instance."
+        ),
+    )
+    if use_generator:
+        st.caption(
+            "⚠️ LLM generation loads a large model — if the app restarts or errors "
+            "after a question, turn this off (retrieval-only) or use a bigger instance."
+        )
 
     tab_upload, tab_qa, tab_about = st.tabs(["📄 Index Documents", "💬 Ask a Question", "ℹ️ About"])
 
