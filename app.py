@@ -275,9 +275,11 @@ def _render_result_meta(meta: dict) -> None:
     label = f"⏱ {latency:.0f} ms · {len(chunks)} chunk(s) retrieved"
     with st.expander(label, expanded=False):
         for i, ch in enumerate(chunks, start=1):
+            snippet = ch["text"][:300].replace("\n", " ")
+            ellipsis = "…" if len(ch["text"]) > 300 else ""
             st.markdown(
                 f"**[{i}]** `{ch['chunk_id']}` — score `{ch['score']:.4f}`\n\n"
-                f"> {ch['text'][:300].replace('\n', ' ')}{'…' if len(ch['text']) > 300 else ''}"  # noqa: E501
+                f"> {snippet}{ellipsis}"
             )
 
 
