@@ -1,0 +1,6 @@
+column_checked,null_count,total_rows,null_pct
+orders.order_delivered_customer_date,2965,99441,2.98
+products.category_name,610,32951,1.85
+orders.order_approved_at,160,99441,0.16
+orders.delivered_status_missing_date,8,96478,0.01
+products.product_weight_g,2,32951,0.01

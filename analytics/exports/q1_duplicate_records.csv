@@ -1,0 +1,4 @@
+issue,affected_groups,affected_rows
+duplicate_review_id,789,1603.0
+orders_with_multiple_reviews,547,1098.0
+fully_duplicate_review_rows,0,

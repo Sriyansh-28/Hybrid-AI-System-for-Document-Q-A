@@ -1,0 +1,3 @@
+delivery_bucket,reviewed_orders,avg_review_score,pct_negative_score,pct_five_star
+late,7661,2.57,53.9,22.3
+on_time,88163,4.3,9.2,62.5

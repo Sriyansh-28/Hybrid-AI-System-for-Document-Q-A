@@ -1,0 +1,8 @@
+integrity_check,violations
+orders_without_items,775
+payment_type_not_defined,3
+orders_without_payment,1
+items_referencing_missing_product,0
+items_referencing_missing_seller,0
+reviews_referencing_missing_order,0
+payments_referencing_missing_order,0

@@ -1,0 +1,4 @@
+metric,mean_value,upper_3sigma,outlier_count,max_value
+order_items.price,120.65,671.55,1966,6735.0
+order_items.freight_value,19.99,67.41,2041,409.68
+products.product_weight_g,2276.47,15122.39,961,40425.0
