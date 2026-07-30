@@ -27,15 +27,22 @@ jobs:
     steps:
       - name: Ping the Streamlit app to keep it awake
         run: |
-          # Hit the health endpoint and the app root. A 200 on /_stcore/health
-          # means the app is awake; anything else (e.g. a 303 to /-/login) means
-          # it is private or asleep — logged for visibility but not failed on,
-          # so a single bad ping never disables the schedule.
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$APP_URL/_stcore/health" || echo "000")
-          echo "health endpoint returned HTTP $code"
-          curl -s -o /dev/null --max-time 90 "$APP_URL/" || true
+          # Streamlit Cloud runs an anonymous-session handshake (a short chain of
+          # 303 redirects that set cookies) before serving a public app. A real
+          # browser follows it automatically; so must the ping. We follow
+          # redirects with a cookie jar and a browser User-Agent so the request
+          # actually reaches the app and registers as real traffic — a bare,
+          # cookie-less request just bounces at the first redirect.
+          jar="$(mktemp)"
+          ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+          code=$(curl -sSL --max-time 90 -c "$jar" -b "$jar" -A "$ua" \
+                   -o /dev/null -w "%{http_code}" \
+                   "$APP_URL/_stcore/health" || echo "000")
+          echo "health endpoint (after session handshake) returned HTTP $code"
+          # Also load the app root so the hit looks like a genuine view.
+          curl -sSL --max-time 90 -c "$jar" -b "$jar" -A "$ua" -o /dev/null "$APP_URL/" || true
           if [ "$code" = "200" ]; then
-            echo "App is awake."
+            echo "App is awake and public."
           else
-            echo "::warning::App did not return 200 (got $code) — check it is PUBLIC and deployed."
+            echo "::warning::App health returned $code — if this persists, confirm the app is deployed and public."
           fi
