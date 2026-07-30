@@ -1,26 +1,41 @@
-name: Keep Render app awake
+name: Keep app awake
 
-# Render's free tier puts a service to sleep after ~15 minutes of inactivity,
-# showing a "waking up" page on the next visit. This workflow pings the
-# Streamlit UI's health endpoint on a schedule so the instance stays warm and
-# visitors land directly on the app.
+# Streamlit Community Cloud puts an app to sleep after a stretch of no traffic.
+# This workflow pings the deployed app on a schedule so it stays awake and
+# visitors land directly on it instead of a "this app has gone to sleep" page.
+#
+# The app must be PUBLIC in its Streamlit Cloud sharing settings for this to
+# work — a private app redirects the ping to a login page, which does not count
+# as traffic.
 #
 # NOTE: GitHub only runs scheduled workflows from the repository's DEFAULT
 # branch (main), so this takes effect once merged to main. Scheduled runs are
-# best-effort and can be delayed a few minutes under load, so we ping every 5
-# minutes to stay comfortably under the 15-minute sleep threshold.
+# best-effort and can lag a few minutes; every 5 minutes is far more frequent
+# than Streamlit Cloud's sleep threshold needs, which gives generous margin.
 
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch: {}   # allows manual runs from the Actions tab
 
+env:
+  APP_URL: https://hybrid-ai-system-for-document-q-a-sri.streamlit.app
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Streamlit UI health endpoint
+      - name: Ping the Streamlit app to keep it awake
         run: |
-          curl -fsS --max-time 90 \
-            https://hybrid-ai-qa-ui.onrender.com/_stcore/health \
-            && echo "UI is awake"
+          # Hit the health endpoint and the app root. A 200 on /_stcore/health
+          # means the app is awake; anything else (e.g. a 303 to /-/login) means
+          # it is private or asleep — logged for visibility but not failed on,
+          # so a single bad ping never disables the schedule.
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$APP_URL/_stcore/health" || echo "000")
+          echo "health endpoint returned HTTP $code"
+          curl -s -o /dev/null --max-time 90 "$APP_URL/" || true
+          if [ "$code" = "200" ]; then
+            echo "App is awake."
+          else
+            echo "::warning::App did not return 200 (got $code) — check it is PUBLIC and deployed."
+          fi
